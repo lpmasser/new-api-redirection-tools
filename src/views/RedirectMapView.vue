@@ -100,7 +100,7 @@ onMounted(() => {
 }
 
 .left-panel {
-  flex: 1;
+  flex: 6;
   display: flex;
   flex-direction: column;
   min-width: 0;
@@ -108,8 +108,7 @@ onMounted(() => {
 }
 
 .right-panel {
-  width: 400px;
-  min-width: 400px;
+  flex: 4;
   display: flex;
   flex-direction: column;
   overflow: hidden;

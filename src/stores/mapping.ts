@@ -2,20 +2,33 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import type { MappingRule } from '../api/types'
 
+// 自动处理规则配置
+export interface ProcessRuleConfig {
+    toLowerCase: boolean       // 转为小写
+    removePreviewSuffix: boolean  // 移除 -preview 后缀
+    removeDateSuffix: boolean     // 移除日期后缀 (如 -0125, -20240125)
+}
+
 export const useMappingStore = defineStore('mapping', () => {
     // 状态
     const rules = ref<MappingRule[]>([])
     const syncMode = ref<'append' | 'overwrite'>('append')
 
+    // 自动处理规则配置
+    const processConfig = ref<ProcessRuleConfig>({
+        toLowerCase: true,
+        removePreviewSuffix: false,
+        removeDateSuffix: false
+    })
+
     // 添加映射规则
     function addRule(sourceModel: string, targetModel: string = '') {
-        // 检查是否已存在
         const existing = rules.value.find(r => r.sourceModel === sourceModel)
         if (existing) return
 
         rules.value.push({
             sourceModel,
-            targetModel: targetModel || sourceModel // 默认使用原名
+            targetModel: targetModel || sourceModel
         })
     }
 
@@ -51,7 +64,6 @@ export const useMappingStore = defineStore('mapping', () => {
         const matchedRules: MappingRule[] = []
         const targetModels = new Set<string>()
 
-        // 遍历上游模型，匹配规则
         for (const model of upstreamModels) {
             const rule = rules.value.find(r => r.sourceModel === model)
             if (rule) {
@@ -60,7 +72,6 @@ export const useMappingStore = defineStore('mapping', () => {
             }
         }
 
-        // 生成 model_mapping JSON
         const mappingObj: Record<string, string> = {}
         for (const rule of matchedRules) {
             mappingObj[rule.sourceModel] = rule.targetModel
@@ -77,10 +88,33 @@ export const useMappingStore = defineStore('mapping', () => {
         rules.value = []
     }
 
-    // 自动处理规则：将目标模型名转为小写
+    // 应用单个处理规则到字符串
+    function applyProcessRules(modelName: string): string {
+        let result = modelName
+
+        // 转为小写
+        if (processConfig.value.toLowerCase) {
+            result = result.toLowerCase()
+        }
+
+        // 移除 -preview 后缀
+        if (processConfig.value.removePreviewSuffix) {
+            result = result.replace(/-preview$/i, '')
+        }
+
+        // 移除日期后缀 (如 -0125, -20240125, -2024-01-25)
+        if (processConfig.value.removeDateSuffix) {
+            result = result.replace(/-\d{4,8}$/i, '')  // -0125 或 -20240125
+            result = result.replace(/-\d{4}-\d{2}-\d{2}$/i, '')  // -2024-01-25
+        }
+
+        return result
+    }
+
+    // 自动处理所有规则
     function autoProcessRules() {
         for (const rule of rules.value) {
-            rule.targetModel = rule.sourceModel.toLowerCase()
+            rule.targetModel = applyProcessRules(rule.sourceModel)
         }
     }
 
@@ -90,6 +124,7 @@ export const useMappingStore = defineStore('mapping', () => {
     return {
         rules,
         syncMode,
+        processConfig,
         addRule,
         removeRule,
         updateTargetModel,

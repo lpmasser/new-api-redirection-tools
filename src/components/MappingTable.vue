@@ -6,16 +6,46 @@
     </div>
     
     <div class="table-actions">
-      <button class="btn-auto" @click="autoProcess">
-        ✨ 自动处理
-      </button>
+      <div class="action-group">
+        <button class="btn-tool" @click="autoProcess" title="执行所有启用的规则">
+          ✨ 自动处理
+        </button>
+        <button class="btn-icon" @click="toggleConfig" :class="{ active: showConfig }" title="规则设置">
+          ⚙️
+        </button>
+      </div>
+      
       <button 
         v-if="mappingStore.ruleCount > 0" 
         class="btn-clear" 
         @click="clearAll"
+        title="清空所有映射规则"
       >
         🗑️ 清空
       </button>
+    </div>
+
+    <!-- 自动处理规则配置面板 -->
+    <div class="process-config-panel" v-show="showConfig">
+      <div class="config-grid">
+        <label class="switch-item">
+          <input type="checkbox" v-model="mappingStore.processConfig.toLowerCase" />
+          <span class="switch-slider"></span>
+          <span class="switch-label">转为小写</span>
+        </label>
+        
+        <label class="switch-item">
+          <input type="checkbox" v-model="mappingStore.processConfig.removePreviewSuffix" />
+          <span class="switch-slider"></span>
+          <span class="switch-label">移除 -preview</span>
+        </label>
+        
+        <label class="switch-item">
+          <input type="checkbox" v-model="mappingStore.processConfig.removeDateSuffix" />
+          <span class="switch-slider"></span>
+          <span class="switch-label">移除日期后缀</span>
+        </label>
+      </div>
     </div>
     
     <div class="table-wrapper" v-if="mappingStore.rules.length > 0">
@@ -48,9 +78,11 @@
 </template>
 
 <script setup lang="ts">
+import { ref } from 'vue'
 import { useMappingStore } from '../stores/mapping'
 
 const mappingStore = useMappingStore()
+const showConfig = ref(false)
 
 function updateTarget(sourceModel: string, targetModel: string) {
   mappingStore.updateTargetModel(sourceModel, targetModel)
@@ -66,9 +98,12 @@ function clearAll() {
   }
 }
 
-// 自动处理：将所有模型名称转为小写
 function autoProcess() {
   mappingStore.autoProcessRules()
+}
+
+function toggleConfig() {
+  showConfig.value = !showConfig.value
 }
 </script>
 
@@ -109,43 +144,141 @@ function autoProcess() {
 
 .table-actions {
   display: flex;
-  gap: 8px;
-  padding: 12px 16px;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 16px;
   border-bottom: 1px solid #f0f0f0;
+  background: #fdfdfd;
   flex-shrink: 0;
 }
 
-.btn-auto {
-  flex: 1;
-  padding: 8px 12px;
+.action-group {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.btn-tool {
+  padding: 6px 14px;
   font-size: 13px;
   color: #667eea;
   background: #f0f4ff;
   border: 1px solid #667eea;
-  border-radius: 8px;
+  border-radius: 6px;
   cursor: pointer;
   transition: all 0.2s ease;
+  font-weight: 600;
 }
 
-.btn-auto:hover {
+.btn-tool:hover {
   background: #667eea;
   color: #fff;
 }
 
+.btn-icon {
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  color: #666;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-icon:hover, .btn-icon.active {
+  background: #f5f5f5;
+  color: #333;
+}
+
+.btn-icon.active {
+  background: #e0e0e0;
+}
+
 .btn-clear {
-  padding: 8px 12px;
-  font-size: 13px;
+  padding: 6px 12px;
+  font-size: 12px;
   color: #e53935;
-  background: #fff;
-  border: 1px solid #e0e0e0;
-  border-radius: 8px;
+  background: transparent;
+  border: 1px solid #ffcdd2;
+  border-radius: 6px;
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
 .btn-clear:hover {
-  border-color: #e53935;
   background: #ffebee;
+  border-color: #e53935;
+}
+
+/* 自动处理配置面板 */
+.process-config-panel {
+  padding: 12px 16px;
+  background: #f8f9fa;
+  border-bottom: 1px solid #e0e0e0;
+  box-shadow: inset 0 2px 6px rgba(0,0,0,0.03);
+  animation: slideDown 0.2s ease-out;
+}
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.config-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.switch-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.switch-item input {
+  display: none;
+}
+
+.switch-slider {
+  position: relative;
+  width: 36px;
+  height: 20px;
+  background-color: #ccc;
+  border-radius: 20px;
+  transition: 0.3s;
+}
+
+.switch-slider:before {
+  content: "";
+  position: absolute;
+  height: 16px;
+  width: 16px;
+  left: 2px;
+  bottom: 2px;
+  background-color: white;
+  border-radius: 50%;
+  transition: 0.3s;
+}
+
+.switch-item input:checked + .switch-slider {
+  background-color: #667eea;
+}
+
+.switch-item input:checked + .switch-slider:before {
+  transform: translateX(16px);
+}
+
+.switch-label {
+  font-size: 13px;
+  color: #444;
 }
 
 .table-wrapper {
@@ -161,7 +294,7 @@ function autoProcess() {
 .rule-item {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   padding: 10px 16px;
   border-bottom: 1px solid #f5f5f5;
 }
@@ -182,8 +315,8 @@ function autoProcess() {
   font-size: 12px;
   color: #333;
   background: #f5f5f5;
-  padding: 4px 8px;
-  border-radius: 4px;
+  padding: 6px 10px;
+  border-radius: 6px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -196,14 +329,14 @@ function autoProcess() {
 }
 
 .rule-target-input {
-  width: 100px;
+  flex: 1;
+  min-width: 0;
   padding: 6px 10px;
   font-size: 12px;
   font-family: 'Consolas', 'Monaco', monospace;
   border: 1px solid #e0e0e0;
   border-radius: 6px;
   outline: none;
-  flex-shrink: 0;
 }
 
 .rule-target-input:focus {
