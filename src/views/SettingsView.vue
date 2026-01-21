@@ -17,7 +17,7 @@
             placeholder="https://your-new-api-server.com"
             required
           />
-          <span class="form-hint">New-API 服务的完整地址</span>
+          <span class="form-hint">New-API 服务的完整地址（开发环境通过 vite.config.ts 配置代理）</span>
         </div>
 
         <div class="form-group">
@@ -97,7 +97,6 @@ function saveConfig() {
 
 // 测试连接
 async function testConnection() {
-  // 先保存配置
   configStore.updateConfig(baseUrl.value, token.value, userId.value)
   
   try {

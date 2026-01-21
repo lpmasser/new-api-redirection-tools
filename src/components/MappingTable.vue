@@ -2,55 +2,47 @@
   <div class="mapping-table">
     <div class="table-header">
       <h3 class="table-title">映射规则</h3>
-      <span class="rule-count">{{ mappingStore.ruleCount }} 条规则</span>
+      <span class="rule-count">{{ mappingStore.ruleCount }} 条</span>
+    </div>
+    
+    <div class="table-actions">
+      <button class="btn-auto" @click="autoProcess">
+        ✨ 自动处理
+      </button>
       <button 
         v-if="mappingStore.ruleCount > 0" 
         class="btn-clear" 
         @click="clearAll"
       >
-        清空全部
+        🗑️ 清空
       </button>
     </div>
     
     <div class="table-wrapper" v-if="mappingStore.rules.length > 0">
-      <table>
-        <thead>
-          <tr>
-            <th class="col-source">原模型名</th>
-            <th class="col-arrow"></th>
-            <th class="col-target">统一命名</th>
-            <th class="col-action">操作</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="rule in mappingStore.rules" :key="rule.sourceModel">
-            <td class="col-source">
-              <code>{{ rule.sourceModel }}</code>
-            </td>
-            <td class="col-arrow">→</td>
-            <td class="col-target">
-              <input 
-                type="text" 
-                :value="rule.targetModel"
-                @input="updateTarget(rule.sourceModel, ($event.target as HTMLInputElement).value)"
-                class="target-input"
-                placeholder="输入统一命名"
-              />
-            </td>
-            <td class="col-action">
-              <button class="btn-delete" @click="removeRule(rule.sourceModel)">
-                ✕
-              </button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+      <div class="rule-list">
+        <div v-for="rule in mappingStore.rules" :key="rule.sourceModel" class="rule-item">
+          <div class="rule-source">
+            <code>{{ rule.sourceModel }}</code>
+          </div>
+          <span class="rule-arrow">→</span>
+          <input 
+            type="text" 
+            :value="rule.targetModel"
+            @input="updateTarget(rule.sourceModel, ($event.target as HTMLInputElement).value)"
+            class="rule-target-input"
+            placeholder="统一命名"
+          />
+          <button class="btn-delete" @click="removeRule(rule.sourceModel)">
+            ✕
+          </button>
+        </div>
+      </div>
     </div>
     
     <div class="empty-state" v-else>
       <span class="empty-icon">📋</span>
       <p>暂无映射规则</p>
-      <p class="empty-hint">在下方渠道卡片中勾选模型以添加规则</p>
+      <p class="empty-hint">在左侧渠道中勾选模型</p>
     </div>
   </div>
 </template>
@@ -60,26 +52,31 @@ import { useMappingStore } from '../stores/mapping'
 
 const mappingStore = useMappingStore()
 
-// 更新目标模型名
 function updateTarget(sourceModel: string, targetModel: string) {
   mappingStore.updateTargetModel(sourceModel, targetModel)
 }
 
-// 删除规则
 function removeRule(sourceModel: string) {
   mappingStore.removeRule(sourceModel)
 }
 
-// 清空所有规则
 function clearAll() {
   if (confirm('确定要清空所有映射规则吗？')) {
     mappingStore.clearRules()
   }
 }
+
+// 自动处理：将所有模型名称转为小写
+function autoProcess() {
+  mappingStore.autoProcessRules()
+}
 </script>
 
 <style scoped>
 .mapping-table {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
   background: #fff;
   border-radius: 12px;
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
@@ -89,120 +86,141 @@ function clearAll() {
 .table-header {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 16px 20px;
+  gap: 10px;
+  padding: 14px 16px;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  flex-shrink: 0;
 }
 
 .table-title {
   margin: 0;
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 600;
   color: #fff;
 }
 
 .rule-count {
-  font-size: 13px;
+  font-size: 12px;
   color: rgba(255, 255, 255, 0.8);
   background: rgba(255, 255, 255, 0.2);
-  padding: 2px 10px;
-  border-radius: 12px;
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+.table-actions {
+  display: flex;
+  gap: 8px;
+  padding: 12px 16px;
+  border-bottom: 1px solid #f0f0f0;
+  flex-shrink: 0;
+}
+
+.btn-auto {
+  flex: 1;
+  padding: 8px 12px;
+  font-size: 13px;
+  color: #667eea;
+  background: #f0f4ff;
+  border: 1px solid #667eea;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-auto:hover {
+  background: #667eea;
+  color: #fff;
 }
 
 .btn-clear {
-  margin-left: auto;
-  padding: 6px 12px;
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.9);
-  background: rgba(255, 255, 255, 0.15);
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 13px;
+  color: #e53935;
+  background: #fff;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
 .btn-clear:hover {
-  background: rgba(255, 255, 255, 0.25);
+  border-color: #e53935;
+  background: #ffebee;
 }
 
 .table-wrapper {
-  overflow-x: auto;
+  flex: 1;
+  overflow-y: auto;
 }
 
-table {
-  width: 100%;
-  border-collapse: collapse;
+.rule-list {
+  display: flex;
+  flex-direction: column;
 }
 
-th, td {
-  padding: 12px 16px;
-  text-align: left;
-  border-bottom: 1px solid #f0f0f0;
+.rule-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-bottom: 1px solid #f5f5f5;
 }
 
-th {
-  font-size: 12px;
-  font-weight: 600;
-  color: #666;
+.rule-item:hover {
   background: #fafafa;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
 }
 
-.col-source {
-  width: 40%;
+.rule-source {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
 }
 
-.col-arrow {
-  width: 40px;
-  text-align: center;
-  color: #aaa;
-}
-
-.col-target {
-  width: 40%;
-}
-
-.col-action {
-  width: 60px;
-  text-align: center;
-}
-
-td code {
+.rule-source code {
+  display: block;
   font-family: 'Consolas', 'Monaco', monospace;
-  font-size: 13px;
+  font-size: 12px;
   color: #333;
   background: #f5f5f5;
   padding: 4px 8px;
   border-radius: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.target-input {
-  width: 100%;
-  padding: 8px 12px;
-  font-size: 13px;
+.rule-arrow {
+  color: #aaa;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.rule-target-input {
+  width: 100px;
+  padding: 6px 10px;
+  font-size: 12px;
   font-family: 'Consolas', 'Monaco', monospace;
   border: 1px solid #e0e0e0;
   border-radius: 6px;
   outline: none;
-  transition: all 0.2s ease;
-  box-sizing: border-box;
+  flex-shrink: 0;
 }
 
-.target-input:focus {
+.rule-target-input:focus {
   border-color: #667eea;
   box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.15);
 }
 
 .btn-delete {
-  width: 28px;
-  height: 28px;
-  font-size: 12px;
+  width: 24px;
+  height: 24px;
+  font-size: 10px;
   color: #999;
   background: transparent;
   border: 1px solid #e0e0e0;
-  border-radius: 6px;
+  border-radius: 4px;
   cursor: pointer;
+  flex-shrink: 0;
   transition: all 0.2s ease;
 }
 
@@ -213,14 +231,17 @@ td code {
 }
 
 .empty-state {
-  padding: 48px 20px;
-  text-align: center;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 40px 20px;
   color: #888;
 }
 
 .empty-icon {
-  font-size: 40px;
-  display: block;
+  font-size: 32px;
   margin-bottom: 12px;
 }
 
@@ -229,7 +250,7 @@ td code {
 }
 
 .empty-hint {
-  font-size: 13px;
+  font-size: 12px;
   color: #aaa;
 }
 </style>

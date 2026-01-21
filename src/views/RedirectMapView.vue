@@ -1,18 +1,15 @@
 <template>
   <div class="redirect-map-view">
-    <!-- 映射规则表格 -->
-    <MappingTable />
-    
-    <!-- 渠道列表 -->
-    <div class="channel-section">
-      <div class="section-header">
-        <h3 class="section-title">渠道列表</h3>
-        <div class="section-actions">
+    <!-- 左侧：渠道列表 -->
+    <div class="left-panel">
+      <div class="panel-header">
+        <h3 class="panel-title">渠道列表</h3>
+        <div class="panel-actions">
           <button class="btn-action" @click="loadChannels" :disabled="channelStore.loading">
-            {{ channelStore.loading ? '加载中...' : '🔄 刷新渠道' }}
+            {{ channelStore.loading ? '...' : '🔄' }}
           </button>
-          <button class="btn-action" @click="loadAllModels" :disabled="loadingAllModels">
-            {{ loadingAllModels ? '加载中...' : '📥 获取所有上游模型' }}
+          <button class="btn-action" @click="loadAllModels" :disabled="loadingAllModels" title="获取所有上游模型">
+            {{ loadingAllModels ? '...' : '📥' }}
           </button>
         </div>
       </div>
@@ -31,13 +28,18 @@
       
       <div class="empty-state" v-else-if="!channelStore.loading">
         <p>暂无渠道数据</p>
-        <p class="empty-hint">请先在设置页面配置 API 信息，然后点击「刷新渠道」</p>
+        <p class="empty-hint">请先配置 API，然后点击刷新</p>
       </div>
       
       <div class="loading-state" v-if="channelStore.loading">
         <div class="spinner"></div>
-        <p>正在加载渠道列表...</p>
+        <p>加载中...</p>
       </div>
+    </div>
+    
+    <!-- 右侧：映射规则 -->
+    <div class="right-panel">
+      <MappingTable />
     </div>
   </div>
 </template>
@@ -54,7 +56,6 @@ const configStore = useConfigStore()
 
 const loadingAllModels = ref(false)
 
-// 加载渠道列表
 async function loadChannels() {
   if (!configStore.isConfigValid()) {
     alert('请先在设置页面配置 API 信息')
@@ -68,7 +69,6 @@ async function loadChannels() {
   }
 }
 
-// 加载所有渠道的上游模型
 async function loadAllModels() {
   if (channelStore.channels.length === 0) {
     alert('请先加载渠道列表')
@@ -83,7 +83,6 @@ async function loadAllModels() {
   }
 }
 
-// 页面加载时自动刷新
 onMounted(() => {
   if (configStore.isConfigValid() && channelStore.channels.length === 0) {
     loadChannels()
@@ -93,39 +92,58 @@ onMounted(() => {
 
 <style scoped>
 .redirect-map-view {
-  padding: 24px;
   display: flex;
-  flex-direction: column;
-  gap: 24px;
+  height: 100%;
+  gap: 20px;
+  padding: 20px;
+  overflow: hidden;
 }
 
-.channel-section {
+.left-panel {
+  flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  min-width: 0;
+  overflow-y: auto;
 }
 
-.section-header {
+.right-panel {
+  width: 400px;
+  min-width: 400px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.panel-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  margin-bottom: 12px;
+  flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  background: #f5f7fa;
+  padding-top: 4px;
+  z-index: 10;
 }
 
-.section-title {
+.panel-title {
   margin: 0;
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 600;
   color: #1a1a2e;
 }
 
-.section-actions {
+.panel-actions {
   display: flex;
-  gap: 10px;
+  gap: 6px;
 }
 
 .btn-action {
-  padding: 8px 16px;
-  font-size: 13px;
+  width: 32px;
+  height: 32px;
+  font-size: 14px;
   color: #333;
   background: #fff;
   border: 1px solid #e0e0e0;
@@ -145,22 +163,24 @@ onMounted(() => {
 }
 
 .error-message {
-  padding: 12px 16px;
+  padding: 10px 12px;
   background: #ffebee;
   color: #c62828;
   border-radius: 8px;
-  font-size: 14px;
+  font-size: 13px;
+  margin-bottom: 12px;
+  flex-shrink: 0;
 }
 
 .channel-list {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
 }
 
 .empty-state,
 .loading-state {
-  padding: 48px 20px;
+  padding: 40px 20px;
   text-align: center;
   color: #888;
   background: #fff;
@@ -175,10 +195,10 @@ onMounted(() => {
 }
 
 .spinner {
-  width: 32px;
-  height: 32px;
-  margin: 0 auto 16px;
-  border: 3px solid #f0f0f0;
+  width: 24px;
+  height: 24px;
+  margin: 0 auto 12px;
+  border: 2px solid #f0f0f0;
   border-top-color: #667eea;
   border-radius: 50%;
   animation: spin 0.8s linear infinite;

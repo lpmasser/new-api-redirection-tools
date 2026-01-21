@@ -12,17 +12,13 @@ function getHeaders(): HeadersInit {
 }
 
 // 获取基础 URL
-// 开发环境下使用代理，生产环境直接请求
+// 开发环境使用代理，生产环境使用配置的地址
 function getBaseUrl(): string {
-    const configStore = useConfigStore()
-    const baseUrl = configStore.baseUrl.replace(/\/$/, '') // 移除末尾斜杠
-
-    // 开发环境下使用代理
-    if (import.meta.env.DEV && configStore.useProxy) {
+    if (import.meta.env.DEV) {
         return '/proxy'
     }
-
-    return baseUrl
+    const configStore = useConfigStore()
+    return configStore.baseUrl.replace(/\/$/, '')
 }
 
 // 获取所有渠道（处理分页）
@@ -30,7 +26,7 @@ export async function getChannels(): Promise<ChannelListResponse['data']['items'
     const baseUrl = getBaseUrl()
     const allChannels: ChannelListResponse['data']['items'] = []
     let page = 1
-    const pageSize = 100 // 每页获取更多以减少请求次数
+    const pageSize = 100
 
     while (true) {
         const response = await fetch(`${baseUrl}/api/channel/?page=${page}&page_size=${pageSize}`, {
@@ -50,7 +46,6 @@ export async function getChannels(): Promise<ChannelListResponse['data']['items'
 
         allChannels.push(...data.data.items)
 
-        // 检查是否还有更多页
         if (page * pageSize >= data.data.total) {
             break
         }

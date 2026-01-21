@@ -77,6 +77,13 @@ export const useMappingStore = defineStore('mapping', () => {
         rules.value = []
     }
 
+    // 自动处理规则：将目标模型名转为小写
+    function autoProcessRules() {
+        for (const rule of rules.value) {
+            rule.targetModel = rule.sourceModel.toLowerCase()
+        }
+    }
+
     // 获取所有规则数量
     const ruleCount = computed(() => rules.value.length)
 
@@ -90,6 +97,7 @@ export const useMappingStore = defineStore('mapping', () => {
         getTargetModel,
         generateChannelConfig,
         clearRules,
+        autoProcessRules,
         ruleCount
     }
 }, {

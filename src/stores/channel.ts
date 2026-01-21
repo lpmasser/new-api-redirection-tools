@@ -57,6 +57,11 @@ export const useChannelStore = defineStore('channel', () => {
         return channel.models ? channel.models.split(',').map(m => m.trim()) : []
     }
 
+    // 检查是否有缓存的渠道数据
+    function hasCachedData(): boolean {
+        return channels.value.length > 0
+    }
+
     return {
         channels,
         loading,
@@ -64,6 +69,12 @@ export const useChannelStore = defineStore('channel', () => {
         loadChannels,
         loadUpstreamModels,
         loadAllUpstreamModels,
-        getChannelModels
+        getChannelModels,
+        hasCachedData
+    }
+}, {
+    persist: {
+        // 只持久化 channels（包含 upstreamModels）
+        pick: ['channels']
     }
 })
