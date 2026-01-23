@@ -27,24 +27,88 @@
 
     <!-- 自动处理规则配置面板 -->
     <div class="process-config-panel" v-show="showConfig">
-      <div class="config-grid">
-        <label class="switch-item">
-          <input type="checkbox" v-model="mappingStore.processConfig.toLowerCase" />
-          <span class="switch-slider"></span>
-          <span class="switch-label">转为小写</span>
-        </label>
+      <!-- 基础选项 -->
+      <div class="config-section">
+        <div class="config-row">
+          <label class="switch-item">
+            <input type="checkbox" v-model="mappingStore.processConfig.formatModelName" />
+            <span class="switch-slider"></span>
+            <span class="switch-label">模型名格式化</span>
+          </label>
+        </div>
         
-        <label class="switch-item">
-          <input type="checkbox" v-model="mappingStore.processConfig.removePreviewSuffix" />
-          <span class="switch-slider"></span>
-          <span class="switch-label">移除 -preview</span>
-        </label>
+        <div class="config-row">
+          <label class="switch-item">
+            <input type="checkbox" v-model="mappingStore.processConfig.toLowerCase" />
+            <span class="switch-slider"></span>
+            <span class="switch-label">转为小写</span>
+          </label>
+        </div>
         
-        <label class="switch-item">
-          <input type="checkbox" v-model="mappingStore.processConfig.removeDateSuffix" />
-          <span class="switch-slider"></span>
-          <span class="switch-label">移除日期后缀</span>
-        </label>
+        <div class="config-row">
+          <label class="switch-item">
+            <input type="checkbox" v-model="mappingStore.processConfig.enableCustomRules" />
+            <span class="switch-slider"></span>
+            <span class="switch-label">自定义规则</span>
+          </label>
+        </div>
+      </div>
+      
+      <!-- 自定义替换规则 -->
+      <div class="custom-rules-section" v-show="mappingStore.processConfig.enableCustomRules">
+        <div class="section-header">
+          <span class="section-title">自定义替换规则</span>
+          <button class="btn-add" @click="mappingStore.addCustomRule()">
+            + 添加
+          </button>
+        </div>
+        
+        <div class="custom-rules-list" v-if="mappingStore.customReplaceRules.length > 0">
+          <div 
+            v-for="rule in sortedCustomRules" 
+            :key="rule.id" 
+            class="custom-rule-item"
+          >
+            <input 
+              type="number" 
+              :value="rule.priority"
+              @input="mappingStore.updateCustomRule(rule.id, { priority: Number(($event.target as HTMLInputElement).value) })"
+              class="priority-input"
+              title="优先级（数字越小优先级越高）"
+              min="1"
+            />
+            <input 
+              type="text" 
+              :value="rule.search"
+              @input="mappingStore.updateCustomRule(rule.id, { search: ($event.target as HTMLInputElement).value })"
+              class="search-input"
+              placeholder="查找"
+            />
+            <span class="replace-arrow">→</span>
+            <input 
+              type="text" 
+              :value="rule.replace"
+              @input="mappingStore.updateCustomRule(rule.id, { replace: ($event.target as HTMLInputElement).value })"
+              class="replace-input"
+              placeholder="替换为"
+            />
+            <label class="mini-switch" title="启用/禁用">
+              <input 
+                type="checkbox" 
+                :checked="rule.enabled"
+                @change="mappingStore.updateCustomRule(rule.id, { enabled: !rule.enabled })"
+              />
+              <span class="mini-slider"></span>
+            </label>
+            <button class="btn-remove" @click="mappingStore.removeCustomRule(rule.id)" title="删除">
+              ✕
+            </button>
+          </div>
+        </div>
+        
+        <div class="empty-custom-rules" v-else>
+          <span>暂无自定义规则，点击"添加"创建</span>
+        </div>
       </div>
     </div>
     
@@ -78,11 +142,16 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useMappingStore } from '../stores/mapping'
 
 const mappingStore = useMappingStore()
 const showConfig = ref(false)
+
+// 按优先级排序的自定义规则
+const sortedCustomRules = computed(() => 
+  [...mappingStore.customReplaceRules].sort((a, b) => a.priority - b.priority)
+)
 
 function updateTarget(sourceModel: string, targetModel: string) {
   mappingStore.updateTargetModel(sourceModel, targetModel)
@@ -220,7 +289,6 @@ function toggleConfig() {
   padding: 12px 16px;
   background: #f8f9fa;
   border-bottom: 1px solid #e0e0e0;
-  box-shadow: inset 0 2px 6px rgba(0,0,0,0.03);
   animation: slideDown 0.2s ease-out;
 }
 
@@ -229,10 +297,15 @@ function toggleConfig() {
   to { opacity: 1; transform: translateY(0); }
 }
 
-.config-grid {
+.config-section {
   display: flex;
-  flex-wrap: wrap;
-  gap: 16px;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.config-row {
+  display: flex;
+  align-items: center;
 }
 
 .switch-item {
@@ -254,6 +327,7 @@ function toggleConfig() {
   background-color: #ccc;
   border-radius: 20px;
   transition: 0.3s;
+  flex-shrink: 0;
 }
 
 .switch-slider:before {
@@ -279,6 +353,163 @@ function toggleConfig() {
 .switch-label {
   font-size: 13px;
   color: #444;
+}
+
+/* 自定义规则区域 */
+.custom-rules-section {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px dashed #ddd;
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.section-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #666;
+}
+
+.btn-add {
+  padding: 4px 10px;
+  font-size: 12px;
+  color: #667eea;
+  background: #fff;
+  border: 1px solid #667eea;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-add:hover {
+  background: #667eea;
+  color: #fff;
+}
+
+.custom-rules-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.custom-rule-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px;
+  background: #fff;
+  border-radius: 6px;
+  border: 1px solid #e0e0e0;
+}
+
+.priority-input {
+  width: 45px;
+  padding: 4px 6px;
+  font-size: 12px;
+  text-align: center;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  outline: none;
+}
+
+.priority-input:focus {
+  border-color: #667eea;
+}
+
+.search-input,
+.replace-input {
+  flex: 1;
+  min-width: 0;
+  padding: 4px 8px;
+  font-size: 12px;
+  font-family: 'Consolas', 'Monaco', monospace;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  outline: none;
+}
+
+.search-input:focus,
+.replace-input:focus {
+  border-color: #667eea;
+}
+
+.replace-arrow {
+  color: #aaa;
+  font-size: 11px;
+  flex-shrink: 0;
+}
+
+/* 迷你开关 */
+.mini-switch {
+  position: relative;
+  cursor: pointer;
+}
+
+.mini-switch input {
+  display: none;
+}
+
+.mini-slider {
+  display: block;
+  width: 28px;
+  height: 16px;
+  background-color: #ccc;
+  border-radius: 16px;
+  transition: 0.3s;
+}
+
+.mini-slider:before {
+  content: "";
+  position: absolute;
+  height: 12px;
+  width: 12px;
+  left: 2px;
+  top: 2px;
+  background-color: white;
+  border-radius: 50%;
+  transition: 0.3s;
+}
+
+.mini-switch input:checked + .mini-slider {
+  background-color: #667eea;
+}
+
+.mini-switch input:checked + .mini-slider:before {
+  transform: translateX(12px);
+}
+
+.btn-remove {
+  width: 20px;
+  height: 20px;
+  font-size: 10px;
+  color: #999;
+  background: transparent;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.btn-remove:hover {
+  color: #e53935;
+  border-color: #e53935;
+  background: #ffebee;
+}
+
+.empty-custom-rules {
+  padding: 12px;
+  text-align: center;
+  color: #888;
+  font-size: 12px;
+  background: #fff;
+  border-radius: 6px;
+  border: 1px dashed #ddd;
 }
 
 .table-wrapper {
