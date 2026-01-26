@@ -6,6 +6,11 @@ export default defineConfig({
   plugins: [vue()],
   server: {
     proxy: {
+      // 代理后端 API 请求
+      '/api': {
+        target: 'http://localhost:3001',
+        changeOrigin: true
+      },
       // 代理所有 /proxy 开头的请求
       '/proxy': {
         target: 'https://api.eloyzh.de',
