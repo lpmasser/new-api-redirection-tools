@@ -1,6 +1,16 @@
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import type { MappingRule } from '../api/types'
+import {
+    fetchMappingRules,
+    saveMappingRules,
+    fetchCustomRules,
+    saveCustomRules,
+    fetchConfig,
+    saveConfig,
+    type CustomReplaceRule as BackendCustomRule,
+    type AppConfig
+} from '../api/backend'
 
 // 自定义替换规则
 export interface CustomReplaceRule {
@@ -32,6 +42,88 @@ export const useMappingStore = defineStore('mapping', () => {
 
     // 自定义替换规则列表
     const customReplaceRules = ref<CustomReplaceRule[]>([])
+
+    // 加载状态
+    const loading = ref(false)
+    const loaded = ref(false)
+    const saving = ref(false)
+
+    // 防抖保存计时器
+    let saveTimer: ReturnType<typeof setTimeout> | null = null
+
+    // 从服务器加载数据
+    async function loadFromServer(): Promise<void> {
+        if (loading.value) return
+
+        loading.value = true
+        try {
+            // 并行加载所有数据
+            const [mappingRulesData, customRulesData, configData] = await Promise.all([
+                fetchMappingRules(),
+                fetchCustomRules(),
+                fetchConfig()
+            ])
+
+            rules.value = mappingRulesData
+            customReplaceRules.value = customRulesData as CustomReplaceRule[]
+
+            // 加载配置
+            if (configData.syncMode) {
+                syncMode.value = configData.syncMode
+            }
+            if (configData.processConfig) {
+                processConfig.value = {
+                    ...processConfig.value,
+                    ...configData.processConfig
+                }
+            }
+
+            loaded.value = true
+        } catch (error) {
+            console.error('Failed to load data from server:', error)
+            throw error
+        } finally {
+            loading.value = false
+        }
+    }
+
+    // 保存数据到服务器（防抖）
+    function saveToServer(): void {
+        if (saveTimer) {
+            clearTimeout(saveTimer)
+        }
+
+        saveTimer = setTimeout(async () => {
+            if (saving.value) return
+
+            saving.value = true
+            try {
+                await Promise.all([
+                    saveMappingRules(rules.value),
+                    saveCustomRules(customReplaceRules.value as BackendCustomRule[]),
+                    saveConfig({
+                        syncMode: syncMode.value,
+                        processConfig: processConfig.value
+                    } as AppConfig)
+                ])
+            } catch (error) {
+                console.error('Failed to save data to server:', error)
+            } finally {
+                saving.value = false
+            }
+        }, 500) // 500ms 防抖
+    }
+
+    // 监听数据变化，自动保存
+    watch(
+        () => [rules.value, customReplaceRules.value, syncMode.value, processConfig.value],
+        () => {
+            if (loaded.value) {
+                saveToServer()
+            }
+        },
+        { deep: true }
+    )
 
     // 生成唯一 ID
     function generateId(): string {
@@ -181,6 +273,11 @@ export const useMappingStore = defineStore('mapping', () => {
         syncMode,
         processConfig,
         customReplaceRules,
+        loading,
+        loaded,
+        saving,
+        loadFromServer,
+        saveToServer,
         addRule,
         removeRule,
         updateTargetModel,
@@ -195,6 +292,4 @@ export const useMappingStore = defineStore('mapping', () => {
         ruleCount,
         customRuleCount
     }
-}, {
-    persist: true
 })
