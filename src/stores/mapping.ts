@@ -262,6 +262,101 @@ export const useMappingStore = defineStore('mapping', () => {
         }
     }
 
+    // 导出规则为 JSON
+    function exportRules(): string {
+        const exportData = {
+            version: 1,
+            exportTime: new Date().toISOString(),
+            rules: rules.value,
+            customReplaceRules: customReplaceRules.value,
+            processConfig: processConfig.value
+        }
+        return JSON.stringify(exportData, null, 2)
+    }
+
+    // 下载导出的规则文件
+    function downloadRules() {
+        const data = exportRules()
+        const blob = new Blob([data], { type: 'application/json' })
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `mapping-rules-${new Date().toISOString().split('T')[0]}.json`
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        URL.revokeObjectURL(url)
+    }
+
+    // 导入规则
+    function importRules(jsonString: string, mode: 'append' | 'overwrite' = 'overwrite'): { success: boolean; message: string } {
+        try {
+            const data = JSON.parse(jsonString)
+
+            // 验证数据格式
+            if (!data.rules || !Array.isArray(data.rules)) {
+                return { success: false, message: '无效的规则文件：缺少 rules 数组' }
+            }
+
+            // 验证规则格式
+            for (const rule of data.rules) {
+                if (typeof rule.sourceModel !== 'string' || typeof rule.targetModel !== 'string') {
+                    return { success: false, message: '无效的规则格式：规则必须包含 sourceModel 和 targetModel' }
+                }
+            }
+
+            if (mode === 'overwrite') {
+                // 覆盖模式：清空现有规则
+                rules.value = data.rules
+            } else {
+                // 追加模式：合并规则，已存在的不添加
+                for (const rule of data.rules) {
+                    if (!hasRule(rule.sourceModel)) {
+                        rules.value.push(rule)
+                    }
+                }
+            }
+
+            // 导入自定义替换规则（如果有）
+            if (data.customReplaceRules && Array.isArray(data.customReplaceRules)) {
+                if (mode === 'overwrite') {
+                    customReplaceRules.value = data.customReplaceRules.map((r: any) => ({
+                        ...r,
+                        id: r.id || generateId() // 确保有 id
+                    }))
+                } else {
+                    for (const rule of data.customReplaceRules) {
+                        // 检查是否已存在相同的规则（相同的 search 和 replace）
+                        const exists = customReplaceRules.value.some(
+                            (r) => r.search === rule.search && r.replace === rule.replace
+                        )
+                        if (!exists) {
+                            customReplaceRules.value.push({
+                                ...rule,
+                                id: generateId()
+                            })
+                        }
+                    }
+                }
+            }
+
+            // 导入处理配置（如果有，仅在覆盖模式下）
+            if (mode === 'overwrite' && data.processConfig) {
+                processConfig.value = {
+                    ...processConfig.value,
+                    ...data.processConfig
+                }
+            }
+
+            return {
+                success: true,
+                message: `成功导入 ${data.rules.length} 条规则`
+            }
+        } catch (error) {
+            return { success: false, message: '解析 JSON 失败：' + (error as Error).message }
+        }
+    }
+
     // 获取所有规则数量
     const ruleCount = computed(() => rules.value.length)
 
@@ -290,6 +385,9 @@ export const useMappingStore = defineStore('mapping', () => {
         removeCustomRule,
         updateCustomRule,
         ruleCount,
-        customRuleCount
+        customRuleCount,
+        exportRules,
+        downloadRules,
+        importRules
     }
 })

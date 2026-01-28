@@ -13,6 +13,20 @@
         <button class="btn-icon" @click="toggleConfig" :class="{ active: showConfig }" title="规则设置">
           ⚙️
         </button>
+        <div class="action-divider"></div>
+        <button class="btn-icon" @click="exportRules" title="导出规则">
+          📤
+        </button>
+        <button class="btn-icon" @click="triggerImport" title="导入规则">
+          📥
+        </button>
+        <input 
+          ref="fileInputRef" 
+          type="file" 
+          accept=".json" 
+          style="display: none" 
+          @change="handleFileSelect"
+        />
       </div>
       
       <button 
@@ -25,17 +39,50 @@
       </button>
     </div>
 
+    <!-- 导入模式选择弹窗 -->
+    <div class="import-modal-overlay" v-if="showImportModal" @click.self="showImportModal = false">
+      <div class="import-modal">
+        <div class="modal-header">
+          <h4>导入规则</h4>
+          <button class="btn-modal-close" @click="showImportModal = false">✕</button>
+        </div>
+        <div class="modal-body">
+          <p class="file-info">文件: {{ importFileName }}</p>
+          <div class="import-options">
+            <label class="import-option">
+              <input type="radio" v-model="importMode" value="overwrite" />
+              <span class="option-content">
+                <span class="option-title">覆盖现有规则</span>
+                <span class="option-desc">清空当前所有规则后导入</span>
+              </span>
+            </label>
+            <label class="import-option">
+              <input type="radio" v-model="importMode" value="append" />
+              <span class="option-content">
+                <span class="option-title">追加到现有规则</span>
+                <span class="option-desc">保留现有规则，仅添加不重复的规则</span>
+              </span>
+            </label>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-cancel" @click="showImportModal = false">取消</button>
+          <button class="btn-confirm" @click="confirmImport">确认导入</button>
+        </div>
+      </div>
+    </div>
+
     <!-- 自动处理规则配置面板 -->
     <div class="process-config-panel" v-show="showConfig">
       <!-- 基础选项 -->
       <div class="config-section">
-        <div class="config-row">
+        <!-- <div class="config-row">
           <label class="switch-item">
             <input type="checkbox" v-model="mappingStore.processConfig.formatModelName" />
             <span class="switch-slider"></span>
             <span class="switch-label">模型名格式化</span>
           </label>
-        </div>
+        </div> -->
         
         <div class="config-row">
           <label class="switch-item">
@@ -113,8 +160,33 @@
     </div>
     
     <div class="table-wrapper" v-if="mappingStore.rules.length > 0">
+      <!-- 筛选标签 -->
+      <div class="filter-tabs">
+        <button 
+          class="filter-tab" 
+          :class="{ active: filterType === 'all' }"
+          @click="filterType = 'all'"
+        >
+          全部 <span class="count">{{ mappingStore.ruleCount }}</span>
+        </button>
+        <button 
+          class="filter-tab" 
+          :class="{ active: filterType === 'redirected' }"
+          @click="filterType = 'redirected'"
+        >
+          已重定向 <span class="count">{{ redirectedCount }}</span>
+        </button>
+        <button 
+          class="filter-tab" 
+          :class="{ active: filterType === 'not-redirected' }"
+          @click="filterType = 'not-redirected'"
+        >
+          未重定向 <span class="count">{{ notRedirectedCount }}</span>
+        </button>
+      </div>
+      
       <div class="rule-list">
-        <div v-for="rule in mappingStore.rules" :key="rule.sourceModel" class="rule-item">
+        <div v-for="rule in filteredRules" :key="rule.sourceModel" class="rule-item" :class="{ 'is-redirected': rule.sourceModel !== rule.targetModel }">
           <div class="rule-source">
             <code>{{ rule.sourceModel }}</code>
           </div>
@@ -129,6 +201,11 @@
           <button class="btn-delete" @click="removeRule(rule.sourceModel)">
             ✕
           </button>
+        </div>
+        
+        <!-- 筛选后无结果 -->
+        <div class="empty-filter-result" v-if="filteredRules.length === 0">
+          <span>没有{{ filterType === 'redirected' ? '已重定向' : '未重定向' }}的规则</span>
         </div>
       </div>
     </div>
@@ -147,11 +224,40 @@ import { useMappingStore } from '../stores/mapping'
 
 const mappingStore = useMappingStore()
 const showConfig = ref(false)
+const fileInputRef = ref<HTMLInputElement | null>(null)
+const showImportModal = ref(false)
+const importMode = ref<'append' | 'overwrite'>('overwrite')
+const importFileName = ref('')
+let pendingImportData = ''
+
+// 筛选类型
+const filterType = ref<'all' | 'redirected' | 'not-redirected'>('all')
 
 // 按优先级排序的自定义规则
 const sortedCustomRules = computed(() => 
   [...mappingStore.customReplaceRules].sort((a, b) => a.priority - b.priority)
 )
+
+// 已重定向的规则数量
+const redirectedCount = computed(() => 
+  mappingStore.rules.filter(r => r.sourceModel !== r.targetModel).length
+)
+
+// 未重定向的规则数量
+const notRedirectedCount = computed(() => 
+  mappingStore.rules.filter(r => r.sourceModel === r.targetModel).length
+)
+
+// 筛选后的规则列表
+const filteredRules = computed(() => {
+  if (filterType.value === 'all') {
+    return mappingStore.rules
+  } else if (filterType.value === 'redirected') {
+    return mappingStore.rules.filter(r => r.sourceModel !== r.targetModel)
+  } else {
+    return mappingStore.rules.filter(r => r.sourceModel === r.targetModel)
+  }
+})
 
 function updateTarget(sourceModel: string, targetModel: string) {
   mappingStore.updateTargetModel(sourceModel, targetModel)
@@ -173,6 +279,46 @@ function autoProcess() {
 
 function toggleConfig() {
   showConfig.value = !showConfig.value
+}
+
+function exportRules() {
+  mappingStore.downloadRules()
+}
+
+function triggerImport() {
+  fileInputRef.value?.click()
+}
+
+function handleFileSelect(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) return
+
+  importFileName.value = file.name
+  const reader = new FileReader()
+  reader.onload = (e) => {
+    pendingImportData = e.target?.result as string
+    showImportModal.value = true
+  }
+  reader.readAsText(file)
+  
+  // 清空 input 以便可以再次选择同一文件
+  input.value = ''
+}
+
+function confirmImport() {
+  if (!pendingImportData) return
+  
+  const result = mappingStore.importRules(pendingImportData, importMode.value)
+  showImportModal.value = false
+  
+  if (result.success) {
+    alert(result.message)
+  } else {
+    alert('导入失败: ' + result.message)
+  }
+  
+  pendingImportData = ''
 }
 </script>
 
@@ -616,5 +762,258 @@ function toggleConfig() {
 .empty-hint {
   font-size: 12px;
   color: #aaa;
+}
+
+/* 筛选标签 */
+.filter-tabs {
+  display: flex;
+  gap: 0;
+  padding: 10px 16px;
+  border-bottom: 1px solid #f0f0f0;
+  background: #fafafa;
+}
+
+.filter-tab {
+  padding: 6px 14px;
+  font-size: 12px;
+  color: #666;
+  background: transparent;
+  border: 1px solid #e0e0e0;
+  border-right: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.filter-tab:first-child {
+  border-radius: 6px 0 0 6px;
+}
+
+.filter-tab:last-child {
+  border-radius: 0 6px 6px 0;
+  border-right: 1px solid #e0e0e0;
+}
+
+.filter-tab:hover {
+  background: #f0f0f0;
+}
+
+.filter-tab.active {
+  color: #fff;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-color: #667eea;
+}
+
+.filter-tab.active + .filter-tab {
+  border-left-color: transparent;
+}
+
+.filter-tab .count {
+  display: inline-block;
+  min-width: 18px;
+  padding: 1px 5px;
+  margin-left: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  text-align: center;
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 10px;
+}
+
+.filter-tab.active .count {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+/* 已重定向的规则高亮 */
+.rule-item.is-redirected .rule-source code {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+
+/* 筛选无结果 */
+.empty-filter-result {
+  padding: 30px 20px;
+  text-align: center;
+  color: #999;
+  font-size: 13px;
+}
+
+/* 操作分隔符 */
+.action-divider {
+  width: 1px;
+  height: 20px;
+  background: #e0e0e0;
+  margin: 0 4px;
+}
+
+/* 导入模态框 */
+.import-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.import-modal {
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  width: 380px;
+  max-width: 90vw;
+  overflow: hidden;
+  animation: modalFadeIn 0.2s ease-out;
+}
+
+@keyframes modalFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: #fff;
+}
+
+.modal-header h4 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.btn-modal-close {
+  width: 24px;
+  height: 24px;
+  background: rgba(255, 255, 255, 0.2);
+  border: none;
+  border-radius: 4px;
+  color: #fff;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.btn-modal-close:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.modal-body {
+  padding: 20px;
+}
+
+.file-info {
+  margin: 0 0 16px;
+  padding: 10px 12px;
+  background: #f5f5f5;
+  border-radius: 6px;
+  font-size: 13px;
+  color: #666;
+  word-break: break-all;
+}
+
+.import-options {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.import-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px;
+  background: #f9f9f9;
+  border: 2px solid transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.import-option:hover {
+  background: #f0f4ff;
+}
+
+.import-option:has(input:checked) {
+  background: #f0f4ff;
+  border-color: #667eea;
+}
+
+.import-option input {
+  margin-top: 2px;
+  accent-color: #667eea;
+}
+
+.option-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.option-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: #333;
+}
+
+.option-desc {
+  font-size: 12px;
+  color: #888;
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 16px 20px;
+  border-top: 1px solid #f0f0f0;
+  background: #fafafa;
+}
+
+.btn-cancel {
+  padding: 8px 18px;
+  font-size: 13px;
+  color: #666;
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-cancel:hover {
+  background: #f5f5f5;
+  border-color: #ccc;
+}
+
+.btn-confirm {
+  padding: 8px 18px;
+  font-size: 13px;
+  color: #fff;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-weight: 500;
+}
+
+.btn-confirm:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.4);
 }
 </style>
