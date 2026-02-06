@@ -42,6 +42,26 @@ function authMiddleware(req, res, next) {
 app.use('/api/auth', authRoutes);
 app.use('/api/data', authMiddleware, dataRoutes);
 
+// 生产环境下 serve 前端静态文件
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+if (process.env.NODE_ENV === 'production') {
+    const distPath = path.join(__dirname, '../dist');
+    app.use(express.static(distPath));
+
+    // SPA fallback - 所有非 API 路由返回 index.html
+    app.get('*', (req, res, next) => {
+        if (req.path.startsWith('/api/')) {
+            return next();
+        }
+        res.sendFile(path.join(distPath, 'index.html'));
+    });
+}
+
 // 健康检查
 app.get('/api/health', (req, res) => {
     res.json({ success: true, message: 'Server is running' });

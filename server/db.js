@@ -1,12 +1,22 @@
 import initSqlJs from 'sql.js';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
-import { readFileSync, writeFileSync, existsSync } from 'fs';
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-const DB_PATH = join(__dirname, 'data.sqlite');
+// 生产环境使用 data 目录（方便 Docker 挂载），开发环境直接放在 server 目录
+const dataDir = process.env.NODE_ENV === 'production'
+    ? join(__dirname, 'data')
+    : __dirname;
+
+// 确保数据目录存在
+if (!existsSync(dataDir)) {
+    mkdirSync(dataDir, { recursive: true });
+}
+
+const DB_PATH = join(dataDir, 'data.sqlite');
 
 let db = null;
 

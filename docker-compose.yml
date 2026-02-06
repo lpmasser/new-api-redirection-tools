@@ -1,0 +1,16 @@
+services:
+  app:
+    build: .
+    container_name: new-api-redirection-tools
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    volumes:
+      # 数据持久化 - SQLite 数据库
+      - ./data:/app/server/data
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+      # 以下需要配置
+      - ACCESS_PASSWORD=${ACCESS_PASSWORD:-changeme}
+      - JWT_SECRET=${JWT_SECRET:-please-change-this-secret}
