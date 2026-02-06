@@ -110,6 +110,11 @@ export interface AppConfig {
         enableCustomRules: boolean
         toLowerCase: boolean
     }
+    upstreamConfig?: {
+        baseUrl: string
+        token: string
+        userId: string
+    }
 }
 
 export async function fetchConfig(): Promise<AppConfig> {

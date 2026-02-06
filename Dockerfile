@@ -3,9 +3,10 @@ FROM node:20-alpine AS frontend-builder
 
 WORKDIR /app
 
-# 复制前端依赖文件
-COPY package.json pnpm-lock.yaml ./
-RUN npm install -g pnpm && pnpm install
+# 复制 workspace 依赖文件（单锁文件）
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY server/package.json ./server/package.json
+RUN npm install -g pnpm && pnpm install --filter new-api-redirection-tools --frozen-lockfile
 
 # 复制前端源码并构建
 COPY src ./src
@@ -18,9 +19,10 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-# 复制后端依赖文件
-COPY server/package.json server/pnpm-lock.yaml ./server/
-RUN cd server && npm install -g pnpm && pnpm install --prod
+# 复制 workspace 依赖文件并仅安装后端生产依赖
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY server/package.json ./server/package.json
+RUN npm install -g pnpm && pnpm install --filter api-redirection-tools-server --prod --frozen-lockfile
 
 # 复制后端源码
 COPY server ./server
@@ -29,7 +31,6 @@ COPY server ./server
 COPY --from=frontend-builder /app/dist ./dist
 
 # 设置环境变量
-ENV NODE_ENV=production
 ENV PORT=3001
 
 # 暴露端口

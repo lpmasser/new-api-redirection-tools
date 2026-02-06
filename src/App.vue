@@ -15,10 +15,12 @@ import { computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import NavBar from './components/NavBar.vue'
 import { useAuthStore } from './stores/auth'
+import { useConfigStore } from './stores/config'
 import { useMappingStore } from './stores/mapping'
 
 const route = useRoute()
 const authStore = useAuthStore()
+const configStore = useConfigStore()
 const mappingStore = useMappingStore()
 
 // 判断是否是登录页面
@@ -26,11 +28,19 @@ const isLoginPage = computed(() => route.name === 'login')
 
 // 登录后加载数据
 onMounted(async () => {
-  if (authStore.isLoggedIn && !mappingStore.loaded) {
+  if (authStore.isLoggedIn) {
     try {
-      await mappingStore.loadFromServer()
+      await configStore.loadFromServer()
     } catch (error) {
-      console.error('Failed to load initial data:', error)
+      console.error('Failed to load config from server:', error)
+    }
+
+    if (!mappingStore.loaded) {
+      try {
+        await mappingStore.loadFromServer()
+      } catch (error) {
+        console.error('Failed to load initial data:', error)
+      }
     }
   }
 })

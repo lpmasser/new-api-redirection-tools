@@ -88,24 +88,48 @@ const userId = ref('')
 const message = ref('')
 const messageType = ref<'success' | 'error'>('success')
 
-// 加载已保存的配置
-onMounted(() => {
+function syncFormToStore() {
+  configStore.updateConfig(baseUrl.value, token.value, userId.value)
+}
+
+function syncStoreToForm() {
   baseUrl.value = configStore.baseUrl
   token.value = configStore.token
   userId.value = configStore.userId
+}
+
+async function persistSettings() {
+  syncFormToStore()
+  if (!configStore.isConfigValid()) {
+    throw new Error('请先填写完整的 Base URL、Token 和用户 ID')
+  }
+  await configStore.saveToServer()
+}
+
+// 加载已保存的配置
+onMounted(async () => {
+  try {
+    await configStore.loadFromServer()
+    syncStoreToForm()
+  } catch (e) {
+    showMessage(`加载配置失败: ${e instanceof Error ? e.message : '未知错误'}`, 'error')
+  }
 })
 
 // 保存配置
-function saveConfig() {
-  configStore.updateConfig(baseUrl.value, token.value, userId.value)
-  showMessage('配置已保存', 'success')
+async function saveConfig() {
+  try {
+    await persistSettings()
+    showMessage('配置已保存到服务器', 'success')
+  } catch (e) {
+    showMessage(`保存失败: ${e instanceof Error ? e.message : '未知错误'}`, 'error')
+  }
 }
 
 // 测试连接
 async function testConnection() {
-  configStore.updateConfig(baseUrl.value, token.value, userId.value)
-  
   try {
+    await persistSettings()
     const channels = await getChannels()
     showMessage(`连接成功！获取到 ${channels.length} 个渠道`, 'success')
   } catch (e) {
@@ -115,9 +139,8 @@ async function testConnection() {
 
 // 从服务器导入重定向配置
 async function importFromServer() {
-  configStore.updateConfig(baseUrl.value, token.value, userId.value)
-  
   try {
+    await persistSettings()
     const channels = await getChannels()
     const { imported, skipped } = mappingStore.importFromChannels(channels)
     showMessage(`导入成功！新增 ${imported} 条规则，跳过 ${skipped} 条已存在的规则`, 'success')

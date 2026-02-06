@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "dev:server": "cd server && node index.js",
+    "dev:server": "pnpm --filter api-redirection-tools-server dev",
     "dev:all": "concurrently \"pnpm run dev:server\" \"pnpm run dev\"",
     "build": "vue-tsc -b && vite build",
     "preview": "vite preview"

@@ -112,6 +112,14 @@ function addLog(type: 'info' | 'success' | 'error', message: string) {
 // 开始同步
 async function startSync() {
   if (!configStore.isConfigValid()) {
+    try {
+      await configStore.loadFromServer(true)
+    } catch (e) {
+      console.error('加载配置失败:', e)
+    }
+  }
+
+  if (!configStore.isConfigValid()) {
     alert('请先在设置页面配置 API 信息')
     return
   }

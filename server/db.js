@@ -6,10 +6,8 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-// 生产环境使用 data 目录（方便 Docker 挂载），开发环境直接放在 server 目录
-const dataDir = process.env.NODE_ENV === 'production'
-    ? join(__dirname, 'data')
-    : __dirname;
+// 数据统一写到 data 目录，便于 Docker 挂载持久化
+const dataDir = join(__dirname, 'data');
 
 // 确保数据目录存在
 if (!existsSync(dataDir)) {

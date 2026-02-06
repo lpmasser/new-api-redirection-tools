@@ -56,8 +56,23 @@ const configStore = useConfigStore()
 
 const loadingAllModels = ref(false)
 
+async function ensureConfigReady(): Promise<boolean> {
+  if (configStore.isConfigValid()) {
+    return true
+  }
+
+  try {
+    await configStore.loadFromServer(true)
+  } catch (e) {
+    console.error('加载配置失败:', e)
+  }
+
+  return configStore.isConfigValid()
+}
+
 async function loadChannels() {
-  if (!configStore.isConfigValid()) {
+  const ready = await ensureConfigReady()
+  if (!ready) {
     alert('请先在设置页面配置 API 信息')
     return
   }
@@ -83,8 +98,9 @@ async function loadAllModels() {
   }
 }
 
-onMounted(() => {
-  if (configStore.isConfigValid() && channelStore.channels.length === 0) {
+onMounted(async () => {
+  const ready = await ensureConfigReady()
+  if (ready && channelStore.channels.length === 0) {
     loadChannels()
   }
 })
