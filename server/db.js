@@ -48,6 +48,13 @@ async function initDatabase() {
         )
     `);
 
+    db.run(`
+        CREATE TABLE IF NOT EXISTS channel_exclusions (
+            channel_id INTEGER PRIMARY KEY,
+            excluded_models TEXT NOT NULL
+        )
+    `);
+
     // 保存初始化后的数据库
     saveDatabase();
 

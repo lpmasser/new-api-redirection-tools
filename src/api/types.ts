@@ -53,3 +53,9 @@ export interface MappingRule {
     sourceModel: string    // 原模型名
     targetModel: string    // 统一命名
 }
+
+// 渠道排除配置
+export interface ChannelExclusion {
+    channelId: number
+    excludedModels: string[]  // 排除的源模型名列表
+}

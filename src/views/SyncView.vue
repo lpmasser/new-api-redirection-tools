@@ -1,79 +1,87 @@
 <template>
   <div class="sync-view">
-    <div class="sync-card">
-      <h2 class="sync-title">同步配置到 New-API</h2>
-      <p class="sync-desc">将映射规则同步到各个渠道</p>
-      
-      <!-- 同步模式选择 -->
-      <div class="mode-section">
-        <h3 class="mode-title">同步模式</h3>
-        <div class="mode-options">
-          <label class="mode-option" :class="{ active: mappingStore.syncMode === 'append' }">
-            <input 
-              type="radio" 
-              value="append" 
-              v-model="mappingStore.syncMode"
-            />
-            <div class="mode-content">
-              <span class="mode-icon">➕</span>
-              <span class="mode-name">追加模式</span>
-              <span class="mode-desc">保留原有配置，追加新规则</span>
-            </div>
-          </label>
-          <label class="mode-option" :class="{ active: mappingStore.syncMode === 'overwrite' }">
-            <input 
-              type="radio" 
-              value="overwrite" 
-              v-model="mappingStore.syncMode"
-            />
-            <div class="mode-content">
-              <span class="mode-icon">🔄</span>
-              <span class="mode-name">覆盖模式</span>
-              <span class="mode-desc">完全替换渠道的模型配置</span>
-            </div>
-          </label>
-        </div>
-      </div>
-      
-      <!-- 同步预览 -->
-      <div class="preview-section">
-        <h3 class="preview-title">同步预览</h3>
-        <div class="preview-stats">
-          <div class="stat-item">
-            <span class="stat-value">{{ mappingStore.ruleCount }}</span>
-            <span class="stat-label">映射规则</span>
-          </div>
-          <div class="stat-item">
-            <span class="stat-value">{{ channelStore.channels.length }}</span>
-            <span class="stat-label">目标渠道</span>
+    <!-- 左侧：渠道同步配置列表 -->
+    <div class="left-panel">
+      <ChannelSyncList />
+    </div>
+    
+    <!-- 右侧：同步控制 -->
+    <div class="right-panel">
+      <div class="sync-card">
+        <h2 class="sync-title">同步配置到 New-API</h2>
+        <p class="sync-desc">将映射规则同步到各个渠道</p>
+        
+        <!-- 同步模式选择 -->
+        <div class="mode-section">
+          <h3 class="mode-title">同步模式</h3>
+          <div class="mode-options">
+            <label class="mode-option" :class="{ active: mappingStore.syncMode === 'append' }">
+              <input 
+                type="radio" 
+                value="append" 
+                v-model="mappingStore.syncMode"
+              />
+              <div class="mode-content">
+                <span class="mode-icon">➕</span>
+                <span class="mode-name">追加模式</span>
+                <span class="mode-desc">保留原有配置，追加新规则</span>
+              </div>
+            </label>
+            <label class="mode-option" :class="{ active: mappingStore.syncMode === 'overwrite' }">
+              <input 
+                type="radio" 
+                value="overwrite" 
+                v-model="mappingStore.syncMode"
+              />
+              <div class="mode-content">
+                <span class="mode-icon">🔄</span>
+                <span class="mode-name">覆盖模式</span>
+                <span class="mode-desc">完全替换渠道的模型配置</span>
+              </div>
+            </label>
           </div>
         </div>
-      </div>
-      
-      <!-- 同步按钮 -->
-      <div class="sync-actions">
-        <button 
-          class="btn-sync" 
-          @click="startSync"
-          :disabled="syncing || mappingStore.ruleCount === 0"
-        >
-          <span v-if="syncing">同步中...</span>
-          <span v-else>📤 开始同步</span>
-        </button>
-      </div>
-      
-      <!-- 同步日志 -->
-      <div class="sync-log" v-if="logs.length > 0">
-        <h3 class="log-title">同步日志</h3>
-        <div class="log-list">
-          <div 
-            v-for="(log, index) in logs" 
-            :key="index"
-            class="log-item"
-            :class="log.type"
+        
+        <!-- 同步预览 -->
+        <div class="preview-section">
+          <h3 class="preview-title">同步预览</h3>
+          <div class="preview-stats">
+            <div class="stat-item">
+              <span class="stat-value">{{ mappingStore.ruleCount }}</span>
+              <span class="stat-label">映射规则</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-value">{{ channelStore.channels.length }}</span>
+              <span class="stat-label">目标渠道</span>
+            </div>
+          </div>
+        </div>
+        
+        <!-- 同步按钮 -->
+        <div class="sync-actions">
+          <button 
+            class="btn-sync" 
+            @click="startSync"
+            :disabled="syncing || mappingStore.ruleCount === 0"
           >
-            <span class="log-icon">{{ log.type === 'success' ? '✅' : log.type === 'error' ? '❌' : 'ℹ️' }}</span>
-            <span class="log-text">{{ log.message }}</span>
+            <span v-if="syncing">同步中...</span>
+            <span v-else>📤 开始同步</span>
+          </button>
+        </div>
+        
+        <!-- 同步日志 -->
+        <div class="sync-log" v-if="logs.length > 0">
+          <h3 class="log-title">同步日志</h3>
+          <div class="log-list">
+            <div 
+              v-for="(log, index) in logs" 
+              :key="index"
+              class="log-item"
+              :class="log.type"
+            >
+              <span class="log-icon">{{ log.type === 'success' ? '✅' : log.type === 'error' ? '❌' : 'ℹ️' }}</span>
+              <span class="log-text">{{ log.message }}</span>
+            </div>
           </div>
         </div>
       </div>
@@ -87,6 +95,7 @@ import { useChannelStore } from '../stores/channel'
 import { useMappingStore } from '../stores/mapping'
 import { useConfigStore } from '../stores/config'
 import { updateChannel } from '../api/channel'
+import ChannelSyncList from '../components/ChannelSyncList.vue'
 
 const channelStore = useChannelStore()
 const mappingStore = useMappingStore()
@@ -135,8 +144,20 @@ async function startSync() {
         continue
       }
       
-      // 生成配置
-      const { models: newModels, modelMapping: newMapping } = mappingStore.generateChannelConfig(upstreamModels)
+      // 获取该渠道的排除列表
+      const excludedModels = mappingStore.getChannelExclusion(channel.id)
+      
+      // 检查是否有未解决的重复冲突
+      const duplicates = mappingStore.detectDuplicateTargets(upstreamModels, excludedModels)
+      if (duplicates.length > 0) {
+        const conflictInfo = duplicates.map(d => `${d.targetModel}(←${d.sourceModels.join(',')})`).join('; ')
+        addLog('error', `渠道 ${channel.name} 有未解决的重复冲突: ${conflictInfo}`)
+        errorCount++
+        continue
+      }
+      
+      // 生成配置（使用排除列表）
+      const { models: newModels, modelMapping: newMapping } = mappingStore.generateChannelConfig(upstreamModels, excludedModels)
       
       if (!newModels) {
         addLog('info', `跳过渠道 ${channel.name}：无匹配规则`)
@@ -186,18 +207,36 @@ async function startSync() {
 
 <style scoped>
 .sync-view {
-  padding: 40px;
+  padding: 24px;
   display: flex;
-  justify-content: center;
+  gap: 24px;
+  /* 使用 100% 高度填满父容器 */
+  height: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.left-panel {
+  flex: 65;
+  overflow-y: auto;
+  /* 底部增加内边距，防止内容贴边被遮挡 */
+  padding-bottom: 24px;
+  /* 增加一点右侧内边距，避免滚动条挡住内容 */
+  padding-right: 10px;
+}
+
+.right-panel {
+  flex: 35;
+  overflow-y: auto;
 }
 
 .sync-card {
-  width: 100%;
-  max-width: 600px;
   background: #fff;
   border-radius: 16px;
-  padding: 32px;
+  padding: 24px;
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
+  position: sticky;
+  top: 0;
 }
 
 .sync-title {

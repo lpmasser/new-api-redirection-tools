@@ -125,3 +125,24 @@ export async function saveConfig(config: AppConfig): Promise<void> {
         body: JSON.stringify({ config })
     })
 }
+
+// ============ 渠道排除配置 API ============
+
+export interface ChannelExclusion {
+    channelId: number
+    excludedModels: string[]
+}
+
+export async function fetchChannelExclusions(): Promise<ChannelExclusion[]> {
+    const res = await request<{ success: boolean; data: ChannelExclusion[] }>(
+        '/api/data/channel-exclusions'
+    )
+    return res.data
+}
+
+export async function saveChannelExclusions(exclusions: ChannelExclusion[]): Promise<void> {
+    await request('/api/data/channel-exclusions', {
+        method: 'PUT',
+        body: JSON.stringify({ exclusions })
+    })
+}

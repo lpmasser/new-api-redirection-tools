@@ -9,7 +9,9 @@
         <span class="channel-tag" v-if="channel.tag">{{ channel.tag }}</span>
       </div>
       <div class="card-meta">
-        <span class="model-count">{{ modelCount }} 模型</span>
+        <span class="model-count" :class="{ 'has-selected': selectedCount > 0 }">
+          <span v-if="selectedCount > 0" class="selected-count">{{ selectedCount }} / </span>{{ modelCount }} 模型
+        </span>
         <span class="expand-icon">{{ expanded ? '▼' : '▶' }}</span>
       </div>
     </div>
@@ -106,6 +108,11 @@ const filteredModels = computed(() => {
 })
 
 const modelCount = computed(() => models.value.length)
+
+// 当前渠道中已选择的模型数量
+const selectedCount = computed(() => 
+  models.value.filter(model => mappingStore.hasRule(model)).length
+)
 
 // 检查模型是否被选中
 function isSelected(model: string): boolean {
@@ -219,6 +226,16 @@ async function refreshModels() {
   gap: 12px;
   color: #888;
   font-size: 13px;
+}
+
+.model-count.has-selected {
+  color: #667eea;
+  font-weight: 500;
+}
+
+.selected-count {
+  color: #667eea;
+  font-weight: 600;
 }
 
 .expand-icon {

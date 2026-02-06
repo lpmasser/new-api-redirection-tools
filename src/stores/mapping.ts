@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed, watch } from 'vue'
-import type { MappingRule } from '../api/types'
+import type { MappingRule, ChannelExclusion } from '../api/types'
 import {
     fetchMappingRules,
     saveMappingRules,
@@ -8,6 +8,8 @@ import {
     saveCustomRules,
     fetchConfig,
     saveConfig,
+    fetchChannelExclusions,
+    saveChannelExclusions,
     type CustomReplaceRule as BackendCustomRule,
     type AppConfig
 } from '../api/backend'
@@ -43,6 +45,9 @@ export const useMappingStore = defineStore('mapping', () => {
     // 自定义替换规则列表
     const customReplaceRules = ref<CustomReplaceRule[]>([])
 
+    // 渠道排除配置列表
+    const channelExclusions = ref<ChannelExclusion[]>([])
+
     // 加载状态
     const loading = ref(false)
     const loaded = ref(false)
@@ -58,13 +63,15 @@ export const useMappingStore = defineStore('mapping', () => {
         loading.value = true
         try {
             // 并行加载所有数据
-            const [mappingRulesData, customRulesData, configData] = await Promise.all([
+            const [mappingRulesData, customRulesData, configData, exclusionsData] = await Promise.all([
                 fetchMappingRules(),
                 fetchCustomRules(),
-                fetchConfig()
+                fetchConfig(),
+                fetchChannelExclusions()
             ])
 
             rules.value = mappingRulesData
+            channelExclusions.value = exclusionsData
             customReplaceRules.value = customRulesData as CustomReplaceRule[]
 
             // 加载配置
@@ -104,7 +111,8 @@ export const useMappingStore = defineStore('mapping', () => {
                     saveConfig({
                         syncMode: syncMode.value,
                         processConfig: processConfig.value
-                    } as AppConfig)
+                    } as AppConfig),
+                    saveChannelExclusions(channelExclusions.value)
                 ])
             } catch (error) {
                 console.error('Failed to save data to server:', error)
@@ -116,7 +124,7 @@ export const useMappingStore = defineStore('mapping', () => {
 
     // 监听数据变化，自动保存
     watch(
-        () => [rules.value, customReplaceRules.value, syncMode.value, processConfig.value],
+        () => [rules.value, customReplaceRules.value, syncMode.value, processConfig.value, channelExclusions.value],
         () => {
             if (loaded.value) {
                 saveToServer()
@@ -196,12 +204,18 @@ export const useMappingStore = defineStore('mapping', () => {
         return rule?.targetModel
     }
 
-    // 为指定渠道生成 models 和 model_mapping
-    function generateChannelConfig(upstreamModels: string[]): { models: string; modelMapping: string } {
+    // 为指定渠道生成 models 和 model_mapping（支持排除列表）
+    // models: 所有目标模型名称（重定向后的名称）
+    // model_mapping: 只包含有更改的映射（source !== target）
+    function generateChannelConfig(upstreamModels: string[], excludedModels: string[] = []): { models: string; modelMapping: string } {
         const matchedRules: MappingRule[] = []
         const targetModels = new Set<string>()
+        const excludedSet = new Set(excludedModels)
 
         for (const model of upstreamModels) {
+            // 跳过排除的模型
+            if (excludedSet.has(model)) continue
+
             const rule = rules.value.find(r => r.sourceModel === model)
             if (rule) {
                 matchedRules.push(rule)
@@ -209,15 +223,84 @@ export const useMappingStore = defineStore('mapping', () => {
             }
         }
 
+        // 只有 source !== target 的才需要写进 mapping
+        // key: 请求中的模型名称（targetModel），value: 实际上游模型名（sourceModel）
         const mappingObj: Record<string, string> = {}
         for (const rule of matchedRules) {
-            mappingObj[rule.sourceModel] = rule.targetModel
+            if (rule.sourceModel !== rule.targetModel) {
+                mappingObj[rule.targetModel] = rule.sourceModel
+            }
         }
 
         return {
             models: Array.from(targetModels).join(','),
             modelMapping: JSON.stringify(mappingObj)
         }
+    }
+
+    // 获取指定渠道的排除模型列表
+    function getChannelExclusion(channelId: number): string[] {
+        const exclusion = channelExclusions.value.find(e => e.channelId === channelId)
+        return exclusion?.excludedModels || []
+    }
+
+    // 设置指定渠道的排除模型列表
+    function setChannelExclusion(channelId: number, excludedModels: string[]) {
+        const existing = channelExclusions.value.find(e => e.channelId === channelId)
+        if (existing) {
+            existing.excludedModels = excludedModels
+        } else {
+            channelExclusions.value.push({ channelId, excludedModels })
+        }
+    }
+
+    // 切换模型的排除状态
+    function toggleModelExclusion(channelId: number, model: string) {
+        const exclusion = channelExclusions.value.find(e => e.channelId === channelId)
+        if (exclusion) {
+            const index = exclusion.excludedModels.indexOf(model)
+            if (index === -1) {
+                exclusion.excludedModels.push(model)
+            } else {
+                exclusion.excludedModels.splice(index, 1)
+            }
+        } else {
+            channelExclusions.value.push({ channelId, excludedModels: [model] })
+        }
+    }
+
+    // 检查模型是否被排除
+    function isModelExcluded(channelId: number, model: string): boolean {
+        const exclusion = channelExclusions.value.find(e => e.channelId === channelId)
+        return exclusion?.excludedModels.includes(model) || false
+    }
+
+    // 检测渠道中重复的目标模型（用于冲突检测）
+    interface DuplicateInfo {
+        targetModel: string
+        sourceModels: string[]
+    }
+
+    function detectDuplicateTargets(upstreamModels: string[], excludedModels: string[] = []): DuplicateInfo[] {
+        const excludedSet = new Set(excludedModels)
+        const targetToSources: Record<string, string[]> = {}
+
+        for (const model of upstreamModels) {
+            if (excludedSet.has(model)) continue
+
+            const rule = rules.value.find(r => r.sourceModel === model)
+            if (rule) {
+                if (!targetToSources[rule.targetModel]) {
+                    targetToSources[rule.targetModel] = []
+                }
+                targetToSources[rule.targetModel]!.push(model)
+            }
+        }
+
+        // 返回有多个源模型映射到同一目标的情况
+        return Object.entries(targetToSources)
+            .filter(([_, sources]) => sources.length > 1)
+            .map(([targetModel, sourceModels]) => ({ targetModel, sourceModels }))
     }
 
     // 清空所有规则
@@ -255,10 +338,10 @@ export const useMappingStore = defineStore('mapping', () => {
         return result
     }
 
-    // 自动处理所有规则
+    // 自动处理所有规则（基于当前 targetModel 进行处理，而不是 sourceModel）
     function autoProcessRules() {
         for (const rule of rules.value) {
-            rule.targetModel = applyProcessRules(rule.sourceModel)
+            rule.targetModel = applyProcessRules(rule.targetModel)
         }
     }
 
@@ -368,6 +451,7 @@ export const useMappingStore = defineStore('mapping', () => {
         syncMode,
         processConfig,
         customReplaceRules,
+        channelExclusions,
         loading,
         loaded,
         saving,
@@ -388,6 +472,11 @@ export const useMappingStore = defineStore('mapping', () => {
         customRuleCount,
         exportRules,
         downloadRules,
-        importRules
+        importRules,
+        getChannelExclusion,
+        setChannelExclusion,
+        toggleModelExclusion,
+        isModelExcluded,
+        detectDuplicateTargets
     }
 })

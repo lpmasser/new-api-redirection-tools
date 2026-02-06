@@ -222,4 +222,78 @@ router.put('/config', (req, res) => {
     }
 });
 
+// ============ 渠道排除配置 ============
+
+// 获取所有渠道排除配置
+router.get('/channel-exclusions', (req, res) => {
+    try {
+        const db = getDb();
+        const stmt = db.prepare('SELECT channel_id, excluded_models FROM channel_exclusions');
+        const exclusions = [];
+
+        while (stmt.step()) {
+            const row = stmt.getAsObject();
+            exclusions.push({
+                channelId: row.channel_id,
+                excludedModels: row.excluded_models ? JSON.parse(row.excluded_models) : []
+            });
+        }
+        stmt.free();
+
+        res.json({
+            success: true,
+            data: exclusions
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: '获取渠道排除配置失败: ' + error.message
+        });
+    }
+});
+
+// 批量更新渠道排除配置（全量替换）
+router.put('/channel-exclusions', (req, res) => {
+    const { exclusions } = req.body;
+
+    if (!Array.isArray(exclusions)) {
+        return res.status(400).json({
+            success: false,
+            message: 'exclusions 必须是数组'
+        });
+    }
+
+    try {
+        const db = getDb();
+
+        // 清空现有配置
+        db.run('DELETE FROM channel_exclusions');
+
+        // 插入新配置
+        for (const exclusion of exclusions) {
+            if (exclusion.channelId !== undefined) {
+                db.run(
+                    'INSERT INTO channel_exclusions (channel_id, excluded_models) VALUES (?, ?)',
+                    [
+                        exclusion.channelId,
+                        JSON.stringify(exclusion.excludedModels || [])
+                    ]
+                );
+            }
+        }
+
+        saveDatabase();
+
+        res.json({
+            success: true,
+            message: '渠道排除配置更新成功'
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: '更新渠道排除配置失败: ' + error.message
+        });
+    }
+});
+
 export default router;
