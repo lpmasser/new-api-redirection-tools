@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed, watch } from 'vue'
-import type { MappingRule, ChannelExclusion } from '../api/types'
+import type { MappingRule, ChannelExclusion, Channel } from '../api/types'
 import {
     fetchMappingRules,
     saveMappingRules,
@@ -440,6 +440,36 @@ export const useMappingStore = defineStore('mapping', () => {
         }
     }
 
+    // 从渠道列表导入重定向配置
+    // 服务器 model_mapping 格式: {"重定向模型名": "原模型名"}
+    function importFromChannels(channels: Channel[]): { imported: number; skipped: number } {
+        let imported = 0
+        let skipped = 0
+
+        for (const channel of channels) {
+            if (!channel.model_mapping) continue
+
+            try {
+                // 解析服务器的 model_mapping
+                const mapping: Record<string, string> = JSON.parse(channel.model_mapping)
+
+                for (const [targetModel, sourceModel] of Object.entries(mapping)) {
+                    // 检查是否已存在该源模型的规则
+                    if (hasRule(sourceModel)) {
+                        skipped++
+                    } else {
+                        addRule(sourceModel, targetModel)
+                        imported++
+                    }
+                }
+            } catch (e) {
+                console.warn(`解析渠道 ${channel.name} 的 model_mapping 失败:`, e)
+            }
+        }
+
+        return { imported, skipped }
+    }
+
     // 获取所有规则数量
     const ruleCount = computed(() => rules.value.length)
 
@@ -477,6 +507,7 @@ export const useMappingStore = defineStore('mapping', () => {
         setChannelExclusion,
         toggleModelExclusion,
         isModelExcluded,
-        detectDuplicateTargets
+        detectDuplicateTargets,
+        importFromChannels
     }
 })

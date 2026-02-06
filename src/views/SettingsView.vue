@@ -17,7 +17,7 @@
             placeholder="https://your-new-api-server.com"
             required
           />
-          <span class="form-hint">New-API 服务的完整地址（开发环境通过 vite.config.ts 配置代理）</span>
+          <span class="form-hint">New-API 服务的完整地址</span>
         </div>
 
         <div class="form-group">
@@ -59,6 +59,10 @@
             <span>🔍</span>
             测试连接
           </button>
+          <button type="button" class="btn btn-accent" @click="importFromServer">
+            <span>📥</span>
+            从服务器导入配置
+          </button>
         </div>
       </form>
 
@@ -72,9 +76,11 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useConfigStore } from '../stores/config'
+import { useMappingStore } from '../stores/mapping'
 import { getChannels } from '../api/channel'
 
 const configStore = useConfigStore()
+const mappingStore = useMappingStore()
 
 const baseUrl = ref('')
 const token = ref('')
@@ -104,6 +110,19 @@ async function testConnection() {
     showMessage(`连接成功！获取到 ${channels.length} 个渠道`, 'success')
   } catch (e) {
     showMessage(`连接失败: ${e instanceof Error ? e.message : '未知错误'}`, 'error')
+  }
+}
+
+// 从服务器导入重定向配置
+async function importFromServer() {
+  configStore.updateConfig(baseUrl.value, token.value, userId.value)
+  
+  try {
+    const channels = await getChannels()
+    const { imported, skipped } = mappingStore.importFromChannels(channels)
+    showMessage(`导入成功！新增 ${imported} 条规则，跳过 ${skipped} 条已存在的规则`, 'success')
+  } catch (e) {
+    showMessage(`导入失败: ${e instanceof Error ? e.message : '未知错误'}`, 'error')
   }
 }
 
@@ -229,6 +248,16 @@ function showMessage(msg: string, type: 'success' | 'error') {
 
 .btn-secondary:hover {
   background: #eee;
+}
+
+.btn-accent {
+  background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+  color: #fff;
+}
+
+.btn-accent:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(17, 153, 142, 0.4);
 }
 
 .message {
