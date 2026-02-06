@@ -36,7 +36,7 @@ ACCESS_PASSWORD=your-strong-password-here
 JWT_SECRET=your-random-jwt-secret-key-at-least-32-chars
 
 # 服务端口
-PORT=3001
+PORT=7482
 ```
 
 3. 使用 Docker Compose 启动：
@@ -45,7 +45,7 @@ PORT=3001
 docker-compose up -d
 ```
 
-4. 访问 `http://localhost:3001`
+4. 访问 `http://localhost:7482`
 
 ### 本地开发
 

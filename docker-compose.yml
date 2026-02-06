@@ -4,7 +4,7 @@ services:
     container_name: new-api-redirection-tools
     restart: unless-stopped
     ports:
-      - "3001:3001"
+      - "7482:7482"
     volumes:
       # 数据持久化 - SQLite 数据库
       - ./data:/app/server/data
