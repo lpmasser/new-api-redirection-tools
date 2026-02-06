@@ -40,6 +40,11 @@ interface ImportPayloadRaw {
     processConfig?: Partial<Record<keyof ProcessRuleConfig, unknown>>
 }
 
+interface ChannelRuleCandidate {
+    sourceModel: string
+    targetModel: string
+}
+
 // 过滤并规范化导入数据中的 processConfig 字段。
 function normalizeProcessConfig(
     raw: Partial<Record<keyof ProcessRuleConfig, unknown>>
@@ -77,6 +82,65 @@ function normalizeCustomRule(
         replace: typeof raw.replace === 'string' ? raw.replace : '',
         enabled: typeof raw.enabled === 'boolean' ? raw.enabled : true
     }
+}
+
+// 解析并清洗渠道 models 列表（去空、去重，保留首次出现顺序）。
+function parseChannelModels(models: string): string[] {
+    const uniqueModels = new Set<string>()
+    for (const model of models.split(',').map(item => item.trim())) {
+        if (!model) continue
+        if (uniqueModels.has(model)) continue
+        uniqueModels.add(model)
+    }
+    return Array.from(uniqueModels)
+}
+
+// 解析并清洗渠道 model_mapping（target -> source）。
+function parseChannelMapping(channel: Channel): Record<string, string> {
+    const mapping: Record<string, string> = {}
+    if (!channel.model_mapping) return mapping
+
+    try {
+        const rawMapping = JSON.parse(channel.model_mapping) as Record<string, unknown>
+        for (const [targetModel, sourceModel] of Object.entries(rawMapping)) {
+            if (typeof sourceModel !== 'string') continue
+
+            const normalizedTarget = targetModel.trim()
+            const normalizedSource = sourceModel.trim()
+            if (!normalizedTarget || !normalizedSource) continue
+
+            mapping[normalizedTarget] = normalizedSource
+        }
+    } catch (error) {
+        console.warn(`解析渠道 ${channel.name} 的 model_mapping 失败:`, error)
+    }
+
+    return mapping
+}
+
+// 从渠道的 models + model_mapping 组合出完整候选规则：
+// 1) 以 models 为基准集合；2) 套用 mapping 覆盖 source；3) 补齐 mapping 中缺失于 models 的条目。
+function collectChannelRuleCandidates(channel: Channel): ChannelRuleCandidate[] {
+    const models = parseChannelModels(channel.models || '')
+    const modelSet = new Set(models)
+    const mapping = parseChannelMapping(channel)
+    const candidates: ChannelRuleCandidate[] = []
+
+    // 1) models 是“当前实际启用模型”全集。
+    for (const targetModel of models) {
+        candidates.push({
+            sourceModel: mapping[targetModel] ?? targetModel,
+            targetModel
+        })
+    }
+
+    // 2) 补齐 models 中没有、但 mapping 中存在的旧条目。
+    for (const [targetModel, sourceModel] of Object.entries(mapping)) {
+        if (modelSet.has(targetModel)) continue
+        candidates.push({ sourceModel, targetModel })
+    }
+
+    return candidates
 }
 
 // 创建 mapping 的导入/导出能力。
@@ -195,29 +259,20 @@ export function createMappingTransfer(
         }
     }
 
-    // 从渠道 model_mapping 中提取并导入规则，统计导入与跳过数量。
+    // 从渠道配置提取并导入规则（包含未重定向模型），统计导入与跳过数量。
     function importFromChannels(channels: Channel[]): ImportFromChannelsResult {
         let imported = 0
         let skipped = 0
 
         for (const channel of channels) {
-            if (!channel.model_mapping) continue
-
-            try {
-                const mapping = JSON.parse(channel.model_mapping) as Record<string, unknown>
-
-                for (const [targetModel, sourceModel] of Object.entries(mapping)) {
-                    if (typeof sourceModel !== 'string') continue
-
-                    if (dependencies.hasRule(sourceModel)) {
-                        skipped++
-                    } else {
-                        dependencies.addRule(sourceModel, targetModel)
-                        imported++
-                    }
+            const candidates = collectChannelRuleCandidates(channel)
+            for (const candidate of candidates) {
+                if (dependencies.hasRule(candidate.sourceModel)) {
+                    skipped++
+                } else {
+                    dependencies.addRule(candidate.sourceModel, candidate.targetModel)
+                    imported++
                 }
-            } catch (error) {
-                console.warn(`解析渠道 ${channel.name} 的 model_mapping 失败:`, error)
             }
         }
 
