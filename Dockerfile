@@ -31,10 +31,10 @@ COPY server ./server
 COPY --from=frontend-builder /app/dist ./dist
 
 # 设置环境变量
-ENV PORT=3001
+ENV PORT=7482
 
 # 暴露端口
-EXPOSE 3001
+EXPOSE 7482
 
 # 数据目录
 VOLUME ["/app/server/data"]

@@ -1,5 +1,6 @@
 import dotenv from 'dotenv';
 import express from 'express';
+import helmet from 'helmet';
 import jwt from 'jsonwebtoken';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -15,7 +16,8 @@ dotenv.config({ path: path.resolve(__dirname, '../.env') });
 
 const app = express();
 const PORT = process.env.PORT || 3001;
-app.set('trust proxy', true);
+// 仅信任本机反向代理（Nginx 等），防止伪造 IP 绕过频率限制
+app.set('trust proxy', 'loopback');
 
 function validateRequiredEnv() {
     const requiredVars = ['ACCESS_PASSWORD', 'JWT_SECRET'];
@@ -26,8 +28,9 @@ function validateRequiredEnv() {
     }
 }
 
-// 中间件
-app.use(express.json());
+// 安全中间件
+app.use(helmet());
+app.use(express.json({ limit: '1mb' }));
 
 // Token 验证中间件
 function authMiddleware(req, res, next) {
@@ -58,6 +61,11 @@ app.use('/api/auth', authRoutes);
 app.use('/api/data', authMiddleware, dataRoutes);
 app.use('/api/proxy', authMiddleware, proxyRoutes);
 
+// 健康检查（放在 SPA fallback 之前）
+app.get('/api/health', (req, res) => {
+    res.json({ success: true, message: 'Server is running' });
+});
+
 // 始终提供前端静态文件
 const distPath = path.join(__dirname, '../dist');
 app.use(express.static(distPath));
@@ -70,9 +78,10 @@ app.get('*', (req, res, next) => {
     res.sendFile(path.join(distPath, 'index.html'));
 });
 
-// 健康检查
-app.get('/api/health', (req, res) => {
-    res.json({ success: true, message: 'Server is running' });
+// 全局错误处理 - 防止泄漏堆栈信息
+app.use((err, req, res, next) => {
+    console.error(err.stack);
+    res.status(500).json({ success: false, message: '服务器内部错误' });
 });
 
 // 初始化数据库后启动服务器
